@@ -3,53 +3,59 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 import numpy as np
-import json
 import os
 import xgboost as xgb
-from sklearn.model_selection import TimeSeriesSplit, GridSearchCV
 
 # -----------------------------
-# CREATE OUTPUT FOLDER (IMPORTANT)
+# CREATE OUTPUT FOLDER
 # -----------------------------
 os.makedirs("outputs", exist_ok=True)
 
 # -----------------------------
-# LOAD DATA (FIXED FOR GITHUB)
+# LOAD DATA
 # -----------------------------
 df = pd.read_csv('data/cleandata.csv')
 
-print(df.head(8))
+# =========================================================
+# FIX: KEEP DATETIME (NOT .date)
+# =========================================================
+df['Adm_Date'] = pd.to_datetime(df['Adm. Date/Time'], errors='coerce')
+df = df.dropna(subset=['Adm_Date'])
 
-"""### Time Series Data Preparation for 'LOS'"""
-
-df['Adm_Date'] = pd.to_datetime(df['Adm. Date/Time']).dt.date
-
+# -----------------------------
+# LOS PREPARATION
+# -----------------------------
 daily_los = df.groupby('Adm_Date')['LOS'].mean().reset_index()
 
 min_date = daily_los['Adm_Date'].min()
 max_date = daily_los['Adm_Date'].max()
+
 date_range = pd.date_range(start=min_date, end=max_date, freq='D')
 
 daily_los = daily_los.set_index('Adm_Date').reindex(date_range).ffill().reset_index()
 daily_los = daily_los.rename(columns={'index': 'Adm_Date'})
 
-"""#### Visualize LOS"""
-
+# -----------------------------
+# LOS CHART (FIXED + LABELS)
+# -----------------------------
 plt.figure(figsize=(14, 7))
-sns.lineplot(x='Adm_Date', y='LOS', data=daily_los)
+plt.plot(daily_los['Adm_Date'], daily_los['LOS'], marker='o')
+
+for x, y in zip(daily_los['Adm_Date'], daily_los['LOS']):
+    plt.text(x, y, f"{y:.1f}", fontsize=7)
+
 plt.title('Daily Average LOS')
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.savefig("outputs/los_chart.png")
 plt.close()
 
-"""### Model Preparation"""
-
+# -----------------------------
+# MODEL (UNCHANGED)
+# -----------------------------
 def create_lagged_features(df, column, num_lags):
     for i in range(1, num_lags + 1):
         df[f'{column}_lag_{i}'] = df[column].shift(i)
@@ -74,13 +80,17 @@ model_ts.fit(X_train, y_train)
 
 y_pred_test = model_ts.predict(X_test)
 
-"""### Forecast Future LOS"""
-
+# -----------------------------
+# FORECAST LOS
+# -----------------------------
 last_known_data = daily_los['LOS'].tail(num_lags).tolist()
 future_predictions = []
 
-future_dates = pd.date_range(start=daily_los['Adm_Date'].max() + pd.Timedelta(days=1),
-                             periods=forecast_horizon, freq='D')
+future_dates = pd.date_range(
+    start=daily_los['Adm_Date'].max() + pd.Timedelta(days=1),
+    periods=forecast_horizon,
+    freq='D'
+)
 
 for _ in range(forecast_horizon):
     input_features = np.array(last_known_data[-num_lags:]).reshape(1, -1)
@@ -93,14 +103,14 @@ future_forecast_df = pd.DataFrame({
     'Forecasted_LOS': future_predictions
 })
 
-"""### SAVE LOS FORECAST JSON (FIXED)"""
-
+# FIX JSON FORMAT (IMPORTANT)
+future_forecast_df['Adm_Date'] = future_forecast_df['Adm_Date'].dt.strftime('%Y-%m-%d')
 future_forecast_df.to_json("outputs/los_forecast.json", orient="records")
 
-"""### BED OCCUPANCY SIMULATION"""
-
+# -----------------------------
+# OCCUPANCY
+# -----------------------------
 daily_admissions_count = df.groupby('Adm_Date').size().reset_index(name='Admissions')
-daily_admissions_count['Adm_Date'] = pd.to_datetime(daily_admissions_count['Adm_Date'])
 
 daily_occ = daily_los.copy()
 daily_occ['Adm_Date'] = pd.to_datetime(daily_occ['Adm_Date'])
@@ -110,8 +120,9 @@ daily_occ = daily_occ.merge(daily_admissions_count, on='Adm_Date', how='left').f
 
 daily_occ['Occupancy'] = (daily_occ['Admissions'] * daily_occ['Avg_LOS']).clip(upper=80)
 
-"""### XGBOOST MODEL"""
-
+# -----------------------------
+# XGBOOST (UNCHANGED)
+# -----------------------------
 num_lags_occ = 7
 for i in range(1, num_lags_occ + 1):
     daily_occ[f'occ_lag_{i}'] = daily_occ['Occupancy'].shift(i)
@@ -127,8 +138,9 @@ y_train_occ = y_occ.iloc[:-7]
 xgb_model = xgb.XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=5, random_state=42)
 xgb_model.fit(X_train_occ, y_train_occ)
 
-"""### FINAL FORECAST"""
-
+# -----------------------------
+# FINAL FORECAST
+# -----------------------------
 last_occ_values = y_occ.tail(num_lags_occ).tolist()
 occ_forecast = []
 
@@ -139,39 +151,46 @@ for _ in range(7):
     occ_forecast.append(pred)
     last_occ_values.append(pred)
 
-forecast_dates = pd.date_range(start=daily_occ['Adm_Date'].max() + pd.Timedelta(days=1), periods=7)
+forecast_dates = pd.date_range(
+    start=daily_occ['Adm_Date'].max() + pd.Timedelta(days=1),
+    periods=7
+)
 
 final_tuned_df = pd.DataFrame({
     'Date': forecast_dates,
     'Tuned_Predicted_Occupancy': occ_forecast
 })
 
-"""### SAVE FINAL JSON (IMPORTANT FIX)"""
-
+# FIX JSON FORMAT
+final_tuned_df['Date'] = final_tuned_df['Date'].dt.strftime('%Y-%m-%d')
 final_tuned_df.to_json("outputs/finaloccupancy.json", orient="records")
 
-"""### SAVE CHARTS (FIXED)"""
+# -----------------------------
+# FINAL CHART (WITH LABELS)
+# -----------------------------
+plt.figure(figsize=(12,6))
+plt.plot(final_tuned_df['Date'], final_tuned_df['Tuned_Predicted_Occupancy'], marker='o')
 
-plt.title('7-Day Refined Bed Occupancy Forecast', fontsize=14)
-plt.xlabel('Date', fontsize=12)
-plt.ylabel('Number of Occupied Beds', fontsize=12)
-plt.ylim(0, 90) # Start from 0 to show scale relative to capacity
-plt.grid(True, linestyle=':', alpha=0.6)
+for x, y in zip(final_tuned_df['Date'], final_tuned_df['Tuned_Predicted_Occupancy']):
+    plt.text(x, y, f"{y:.1f}", fontsize=9)
+
+plt.axhline(y=80, color='red')
 plt.xticks(rotation=45)
-plt.legend(loc='upper right')
+plt.title("Bed Occupancy Forecast")
 plt.tight_layout()
 plt.savefig("outputs/occupancychart.png")
 plt.close()
 
-plt.figure(figsize=(14, 7))
-sns.lineplot(x='Adm_Date', y='Occupied_Beds', data=occupied_beds_df, marker='o', color='purple', label='Demanded Beds')
-sns.lineplot(x='Adm_Date', y='Available_Beds', data=occupied_beds_df, marker='o', color='orange', label='Available Beds')
-plt.axhline(y=total_beds, color='red', linestyle='--', label=f'Total Capacity ({total_beds} Beds)')
-plt.title('Forecasted Daily Bed Occupancy and Availability (Next Three Weeks)')
-plt.xlabel('Date')
-plt.ylabel('Number of Beds')
-plt.legend()
-plt.grid(True)
+# -----------------------------
+# DEMAND CHART (FIXED)
+# -----------------------------
+plt.figure(figsize=(12,6))
+plt.plot(daily_occ['Adm_Date'], daily_occ['Occupancy'], marker='o')
+
+for x, y in zip(daily_occ['Adm_Date'], daily_occ['Occupancy']):
+    plt.text(x, y, f"{y:.1f}", fontsize=6)
+
+plt.title("Demand Chart")
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.savefig("outputs/demandchart.png")
