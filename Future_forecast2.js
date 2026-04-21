@@ -6,31 +6,6 @@ const days = ["Day 1","Day 2","Day 3","Day 4","Day 5","Day 6","Day 7",
 const losData = [5,6,5.5,6.2,6.8,7,6.5,6.7,7.2,7.5,7.1,6.9,7.3,7.6];
 const occupancyData = [70,72,75,78,80,82,85,87,88,90,92,91,93,95];
 
-// Length of Stay Chart
-new Chart(document.getElementById("losChart"), {
-    type: "line",
-    data: {
-        labels: days,
-        datasets: [{
-            label: "Length of Stay (Days)",
-            data: losData,
-            tension: 0.3
-        }]
-    }
-});
-
-// Bed Occupancy Chart
-new Chart(document.getElementById("occupancyChart"), {
-    type: "line",
-    data: {
-        labels: days,
-        datasets: [{
-            label: "Bed Occupancy (%)",
-            data: occupancyData,
-            tension: 0.3
-        }]
-    }
-});
 
 // Example Prediction Outputs
 document.getElementById("patientStatus").innerText =
@@ -50,8 +25,6 @@ function logout(){
 }
 
 
-
-// load your JSON file
 fetch("outputs/finaloccupancy.json")
   .then(res => res.json())
   .then(data => {
@@ -63,9 +36,9 @@ fetch("outputs/finaloccupancy.json")
 
     data.forEach(row => {
 
-      // 🔥 FIX: convert timestamp OR string safely
       let date = row.Date;
 
+      // safety fix for timestamps (future-proof)
       if (typeof date === "number") {
         date = new Date(date).toISOString().split("T")[0];
       }
@@ -83,7 +56,8 @@ fetch("outputs/finaloccupancy.json")
         datasets: [{
           label: "Bed Occupancy",
           data: values,
-          borderWidth: 2
+          borderWidth: 2,
+          tension: 0.3
         }]
       }
     });
