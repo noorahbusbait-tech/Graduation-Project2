@@ -127,28 +127,26 @@ y_train_occ = y_occ.iloc[:-7]
 xgb_model = xgb.XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=5, random_state=42)
 xgb_model.fit(X_train_occ, y_train_occ)
 
-"""### FINAL FORECAST"""
-
-last_occ_values = y_occ.tail(num_lags_occ).tolist()
-occ_forecast = []
-
-for _ in range(7):
-    inp = np.array(last_occ_values[-num_lags_occ:]).reshape(1, -1)
-    pred = xgb_model.predict(inp)[0]
-    pred = min(80, max(0, pred))
-    occ_forecast.append(pred)
-    last_occ_values.append(pred)
-
-forecast_dates = pd.date_range(start=daily_occ['Adm_Date'].max() + pd.Timedelta(days=1), periods=7)
+# -----------------------------
+# FINAL FORECAST (FIXED DATES)
+# -----------------------------
+forecast_dates = pd.date_range(
+    start=pd.to_datetime(daily_occ['Adm_Date']).max() + pd.Timedelta(days=1),
+    periods=7
+)
 
 final_tuned_df = pd.DataFrame({
-    'Date': forecast_dates,
+    'Date': forecast_dates,  # keep as datetime first
     'Tuned_Predicted_Occupancy': occ_forecast
 })
 
-"""### SAVE FINAL JSON (IMPORTANT FIX)"""
+# 🔥 CRITICAL FIX: force string format BEFORE JSON export
+final_tuned_df['Date'] = final_tuned_df['Date'].dt.strftime('%Y-%m-%d')
 
-final_tuned_df.to_json("outputs/finaloccupancy.json", orient="records")
+final_tuned_df.to_json(
+    "outputs/finaloccupancy.json",
+    orient="records"
+)
 
 """### SAVE CHARTS (FIXED)"""
 
