@@ -199,7 +199,6 @@ daily_occ_sorted = daily_occ.sort_values('Adm_Date')
 sns.lineplot(
     x=pd.to_datetime(daily_occ_sorted['Adm_Date']),
     y=daily_occ_sorted['Occupancy'],
-    marker='o'
 )
 
 plt.title("Bed Demand Trend")
