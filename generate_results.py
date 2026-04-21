@@ -27,7 +27,7 @@ print(df.head(8))
 
 """### Time Series Data Preparation for 'LOS'"""
 
-df['Adm_Date'] = pd.to_datetime(df['Adm. Date/Time']).dt.date
+df['Adm_Date'] = pd.to_datetime(df['Adm. Date/Time'], format='mixed')
 
 daily_los = df.groupby('Adm_Date')['LOS'].mean().reset_index()
 
