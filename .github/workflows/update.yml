@@ -16,13 +16,13 @@ jobs:
         with:
           python-version: "3.10"
 
-      - run: pip install matplotlib pandas
+      - run: pip install pandas numpy matplotlib seaborn scikit-learn xgboost
 
       - run: python generate_results.py
 
       - run: |
-          git config --global user.name "bot"
-          git config --global user.email "bot@github.com"
-          git add finaloccupancy.json chart.png
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add outputs/
           git commit -m "auto update" || echo "no changes"
           git push
