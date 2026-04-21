@@ -168,30 +168,71 @@ final_tuned_df.to_json("outputs/finaloccupancy.json", orient="records")
 # -----------------------------
 # FINAL CHART (WITH LABELS)
 # -----------------------------
-plt.figure(figsize=(12,6))
-plt.plot(final_tuned_df['Date'], final_tuned_df['Tuned_Predicted_Occupancy'], marker='o')
+plt.figure(figsize=(14, 7))
 
-for x, y in zip(final_tuned_df['Date'], final_tuned_df['Tuned_Predicted_Occupancy']):
-    plt.text(x, y, f"{y:.1f}", fontsize=9)
+sns.lineplot(
+    x='Date',
+    y='Tuned_Predicted_Occupancy',
+    data=final_tuned_df,
+    marker='o',
+    color='blue',
+    label='Forecasted Occupancy'
+)
 
-plt.axhline(y=80, color='red')
+plt.title('7-Day Refined Bed Occupancy Forecast', fontsize=14)
+plt.xlabel('Date', fontsize=12)
+plt.ylabel('Number of Occupied Beds', fontsize=12)
+plt.ylim(0, 90)
+plt.grid(True, linestyle=':', alpha=0.6)
 plt.xticks(rotation=45)
-plt.title("Bed Occupancy Forecast")
+plt.legend(loc='upper right')
 plt.tight_layout()
+
 plt.savefig("outputs/occupancychart.png")
 plt.close()
 
 # -----------------------------
 # DEMAND CHART (FIXED)
 # -----------------------------
-plt.figure(figsize=(12,6))
-plt.plot(daily_occ['Adm_Date'], daily_occ['Occupancy'], marker='o')
+plt.figure(figsize=(14, 7))
 
-for x, y in zip(daily_occ['Adm_Date'], daily_occ['Occupancy']):
-    plt.text(x, y, f"{y:.1f}", fontsize=6)
+# FIX: create proper dataframe from existing data
+occupied_beds_df = daily_occ.copy()
+occupied_beds_df['Occupied_Beds'] = occupied_beds_df['Occupancy']
+occupied_beds_df['Available_Beds'] = 80 - occupied_beds_df['Occupancy']  # assuming 80 capacity
 
-plt.title("Demand Chart")
+sns.lineplot(
+    x='Adm_Date',
+    y='Occupied_Beds',
+    data=occupied_beds_df,
+    marker='o',
+    color='purple',
+    label='Demanded Beds'
+)
+
+sns.lineplot(
+    x='Adm_Date',
+    y='Available_Beds',
+    data=occupied_beds_df,
+    marker='o',
+    color='orange',
+    label='Available Beds'
+)
+
+plt.axhline(
+    y=80,
+    color='red',
+    linestyle='--',
+    label='Total Capacity (80 Beds)'
+)
+
+plt.title('Forecasted Daily Bed Occupancy and Availability (Next Three Weeks)')
+plt.xlabel('Date')
+plt.ylabel('Number of Beds')
+plt.legend()
+plt.grid(True)
 plt.xticks(rotation=45)
 plt.tight_layout()
+
 plt.savefig("outputs/demandchart.png")
 plt.close()
