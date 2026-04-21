@@ -116,9 +116,16 @@ daily_occ = daily_los.copy()
 daily_occ['Adm_Date'] = pd.to_datetime(daily_occ['Adm_Date'])
 daily_occ = daily_occ.rename(columns={'LOS': 'Avg_LOS'})
 
-daily_occ = daily_occ.merge(daily_admissions_count, on='Adm_Date', how='left').fillna(0)
+daily_occ = daily_occ.merge(daily_admissions_count, on='Adm_Date', how='left')
 
-daily_occ['Occupancy'] = (daily_occ['Admissions'] * daily_occ['Avg_LOS']).clip(upper=80)
+daily_occ['Admissions'] = daily_occ['Admissions'].fillna(0)
+daily_occ['Avg_LOS'] = daily_occ['Avg_LOS'].fillna(daily_occ['Avg_LOS'].mean())
+
+# occupancy calculation (clean + safe)
+daily_occ['Occupancy'] = daily_occ['Admissions'] * daily_occ['Avg_LOS']
+
+# clip AFTER fixing values
+daily_occ['Occupancy'] = daily_occ['Occupancy'].clip(0, 80)
 
 # -----------------------------
 # XGBOOST (UNCHANGED)
