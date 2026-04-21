@@ -64,17 +64,27 @@ fetch("outputs/finaloccupancy.json")
     // -------------------------
     // SIMPLE SHORTAGE LOGIC
     // -------------------------
-    const max = Math.max(...values);
-    let risk = "Low";
+const maxVal = Math.max(...values);
+const capacity = 80;
 
-    if (max > 75) risk = "High Risk of Shortage";
-    else if (max > 60) risk = "Moderate Risk";
+let risk = "Low";
 
-    riskBox.innerHTML = `
-      <strong>Shortage Risk:</strong><br>
-      ${risk}
-    `;
-  })
-  .catch(err => {
-    console.error(err);
-  });
+const ratio = maxVal / capacity;
+
+if (ratio >= 0.95) {
+    risk = "Critical Shortage Risk";
+} else if (ratio >= 0.80) {
+    risk = "High Risk";
+} else if (ratio >= 0.65) {
+    risk = "Moderate Risk";
+} else {
+    risk = "Low Risk";
+}
+
+
+riskBox.innerHTML = `
+  <strong>Shortage Risk:</strong><br>
+  ${risk}
+`;
+
+    
