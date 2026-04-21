@@ -25,30 +25,30 @@ function logout(){
 }
 
 
+
 fetch("outputs/finaloccupancy.json")
   .then(res => res.json())
   .then(data => {
 
     const box = document.getElementById("occupancyResults");
+    const riskBox = document.getElementById("patientPrediction");
 
-    const labels = [];
-    const values = [];
+    let labels = [];
+    let values = [];
+
+    box.innerHTML = "<strong>Next 3 Weeks Bed Occupancy:</strong><br>";
 
     data.forEach(row => {
 
-      let date = row.Date;
-
-      // safety fix for timestamps (future-proof)
-      if (typeof date === "number") {
-        date = new Date(date).toISOString().split("T")[0];
-      }
-
-      labels.push(date);
+      labels.push(row.Date);
       values.push(row.Tuned_Predicted_Occupancy);
 
-      box.innerHTML += `<p>${date} → ${row.Tuned_Predicted_Occupancy.toFixed(2)}</p>`;
+      box.innerHTML += `
+        ${row.Date} → ${row.Tuned_Predicted_Occupancy.toFixed(2)}<br>
+      `;
     });
 
+    // CHART
     new Chart(document.getElementById("occupancyChart"), {
       type: "line",
       data: {
@@ -56,15 +56,25 @@ fetch("outputs/finaloccupancy.json")
         datasets: [{
           label: "Bed Occupancy",
           data: values,
-          borderWidth: 2,
-          tension: 0.3
+          borderWidth: 2
         }]
       }
     });
 
+    // -------------------------
+    // SIMPLE SHORTAGE LOGIC
+    // -------------------------
+    const max = Math.max(...values);
+    let risk = "Low";
+
+    if (max > 75) risk = "High Risk of Shortage";
+    else if (max > 60) risk = "Moderate Risk";
+
+    riskBox.innerHTML = `
+      <strong>Shortage Risk:</strong><br>
+      ${risk}
+    `;
   })
   .catch(err => {
     console.error(err);
-    document.getElementById("forecastStatus").innerText =
-      "Model Status: Error loading data";
   });
