@@ -192,16 +192,23 @@ plt.close()
 # -----------------------------
 # CHART 2: DEMAND
 # -----------------------------
-plt.figure(figsize=(12,6))
+plt.figure(figsize=(14,6))
+
+daily_occ_sorted = daily_occ.sort_values('Adm_Date')
 
 sns.lineplot(
-    x=daily_occ['Adm_Date'].astype(str),
-    y=daily_occ['Occupancy'],
+    x=pd.to_datetime(daily_occ_sorted['Adm_Date']),
+    y=daily_occ_sorted['Occupancy'],
     marker='o'
 )
 
 plt.title("Bed Demand Trend")
+plt.xlabel("Date")
+plt.ylabel("Occupancy")
+
 plt.xticks(rotation=45)
+plt.grid(True, linestyle=':', alpha=0.5)
+
 plt.tight_layout()
 plt.savefig("outputs/demandchart.png")
 plt.close()
