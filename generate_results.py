@@ -256,83 +256,59 @@ xgb_model.fit(X_train_occ, y_train_occ)
 
 
 
-"""### FINAL FORECAST"""
-
-
-
+# -----------------------------
+# FINAL FORECAST (Fixing Feature Names & Columns)
+# -----------------------------
 last_occ_values = y_occ.tail(num_lags_occ).tolist()
-
 occ_forecast = []
 
-
+# Create the list of feature names used during xgb_model.fit
+feature_cols = [f'occ_lag_{i}' for i in range(1, num_lags_occ + 1)]
 
 for _ in range(7):
-
-    inp = np.array(last_occ_values[-num_lags_occ:]).reshape(1, -1)
-
+    # Create a DataFrame instead of a NumPy array to avoid the Feature Names warning
+    inp = pd.DataFrame([last_occ_values[-num_lags_occ:]], columns=feature_cols)
+    
     pred = xgb_model.predict(inp)[0]
-
     pred = min(80, max(0, pred))
-
     occ_forecast.append(pred)
-
     last_occ_values.append(pred)
-
-
 
 forecast_dates = pd.date_range(start=daily_occ['Adm_Date'].max() + pd.Timedelta(days=1), periods=7)
 
-
-
+# We name this 'Adm_Date' to match your plotting request
 final_tuned_df = pd.DataFrame({
-
-    'Date': forecast_dates,
-
-    'Tuned_Predicted_Occupancy': occ_forecast
-
+    'Adm_Date': forecast_dates,
+    'Occupied_Beds': occ_forecast,
+    'Total_Beds': [80] * len(occ_forecast)
 })
 
-
-
-# -----------------------------
-# SAVE FINAL JSON
-# -----------------------------
-final_tuned_df.to_json("outputs/finaloccupancy.json", orient="records", date_format='iso')
+# Calculate Available_Beds
+final_tuned_df['Available_Beds'] = final_tuned_df['Total_Beds'] - final_tuned_df['Occupied_Beds']
 
 # -----------------------------
-# ENHANCED CHART GENERATION
+# PLOTTING (Now matches the DataFrame columns)
 # -----------------------------
 plt.figure(figsize=(16, 8))
 sns.set_style("whitegrid")
 
-# 1. Plot Demanded/Occupied Beds (Purple Line)
+# Purple line for Occupied
 plt.plot(final_tuned_df['Adm_Date'], final_tuned_df['Occupied_Beds'], 
-         color='#700070', marker='o', markersize=5, linewidth=1.5, label='Demanded Beds')
+         color='#700070', marker='o', label='Demanded Beds')
 
-# 2. Plot Available Beds (Orange Line)
+# Orange line for Available
 plt.plot(final_tuned_df['Adm_Date'], final_tuned_df['Available_Beds'], 
-         color='#FFA500', marker='o', markersize=5, linewidth=1.5, label='Available Beds')
+         color='#FFA500', marker='o', label='Available Beds')
 
-# 3. Add Capacity Line (Red Dashed)
-# We take the value from your 'Total_Beds' column (assuming it's constant at 80)
-capacity = final_tuned_df['Total_Beds'].iloc[0] 
-plt.axhline(y=capacity, color='red', linestyle='--', linewidth=1.5, label=f'Total Capacity ({capacity} Beds)')
+# Red dashed line for Capacity
+plt.axhline(y=80, color='red', linestyle='--', label='Total Capacity (80 Beds)')
 
-# --- Styling & Formatting ---
-plt.title('Forecasted Daily Bed Occupancy and Availability (Next Three Weeks)', fontsize=14)
-plt.xlabel('Date', fontsize=12)
-plt.ylabel('Number of Beds', fontsize=12)
-
-# Adjust X-Axis ticks to be readable
+plt.title('Forecasted Daily Bed Occupancy and Availability')
 plt.xticks(rotation=45)
-
-# Set the Y-axis to start slightly below 0 to show the overflow (negative availability)
-plt.ylim(bottom=-10) 
-
-plt.legend(loc='lower left', frameon=True)
-plt.grid(True, which='both', linestyle='-', alpha=0.5)
+plt.legend(loc='lower left')
 plt.tight_layout()
 
-# Save the final image
-plt.savefig("outputs/occupancychart.png", dpi=300)
+# Save outputs
+final_tuned_df.to_json("outputs/finaloccupancy.json", orient="records", date_format='iso')
+plt.savefig("outputs/occupancychart.png")
 plt.close()
