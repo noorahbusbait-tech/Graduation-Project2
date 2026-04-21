@@ -294,38 +294,45 @@ final_tuned_df = pd.DataFrame({
 
 
 
-"""### SAVE FINAL JSON (IMPORTANT FIX)"""
+# -----------------------------
+# SAVE FINAL JSON
+# -----------------------------
+final_tuned_df.to_json("outputs/finaloccupancy.json", orient="records", date_format='iso')
 
+# -----------------------------
+# ENHANCED CHART GENERATION
+# -----------------------------
+plt.figure(figsize=(16, 8))
+sns.set_style("whitegrid")
 
+# 1. Plot Demanded/Occupied Beds (Purple Line)
+plt.plot(final_tuned_df['Adm_Date'], final_tuned_df['Occupied_Beds'], 
+         color='#700070', marker='o', markersize=5, linewidth=1.5, label='Demanded Beds')
 
-final_tuned_df.to_json("outputs/finaloccupancy.json", orient="records")
+# 2. Plot Available Beds (Orange Line)
+plt.plot(final_tuned_df['Adm_Date'], final_tuned_df['Available_Beds'], 
+         color='#FFA500', marker='o', markersize=5, linewidth=1.5, label='Available Beds')
 
+# 3. Add Capacity Line (Red Dashed)
+# We take the value from your 'Total_Beds' column (assuming it's constant at 80)
+capacity = final_tuned_df['Total_Beds'].iloc[0] 
+plt.axhline(y=capacity, color='red', linestyle='--', linewidth=1.5, label=f'Total Capacity ({capacity} Beds)')
 
+# --- Styling & Formatting ---
+plt.title('Forecasted Daily Bed Occupancy and Availability (Next Three Weeks)', fontsize=14)
+plt.xlabel('Date', fontsize=12)
+plt.ylabel('Number of Beds', fontsize=12)
 
-"""### SAVE CHARTS (FIXED)"""
+# Adjust X-Axis ticks to be readable
+plt.xticks(rotation=45)
 
+# Set the Y-axis to start slightly below 0 to show the overflow (negative availability)
+plt.ylim(bottom=-10) 
 
-
-plt.figure(figsize=(12,6))
-
-sns.lineplot(x='Date', y='Tuned_Predicted_Occupancy', data=final_tuned_df)
-
-plt.axhline(y=80, color='red')
-
+plt.legend(loc='lower left', frameon=True)
+plt.grid(True, which='both', linestyle='-', alpha=0.5)
 plt.tight_layout()
 
-plt.savefig("outputs/occupancychart.png")
-
-plt.close()
-
-
-
-plt.figure(figsize=(12,6))
-
-sns.lineplot(x='Adm_Date', y='Occupancy', data=daily_occ)
-
-plt.tight_layout()
-
-plt.savefig("outputs/demandchart.png")
-
+# Save the final image
+plt.savefig("outputs/occupancychart.png", dpi=300)
 plt.close()
