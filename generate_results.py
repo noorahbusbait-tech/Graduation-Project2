@@ -113,6 +113,7 @@ daily_occ['Occupancy'] = (daily_occ['Admissions'] * daily_occ['Avg_LOS']).clip(u
 """### XGBOOST MODEL"""
 
 num_lags_occ = 7
+
 for i in range(1, num_lags_occ + 1):
     daily_occ[f'occ_lag_{i}'] = daily_occ['Occupancy'].shift(i)
 
@@ -124,11 +125,30 @@ y_occ = daily_occ['Occupancy']
 X_train_occ = X_occ.iloc[:-7]
 y_train_occ = y_occ.iloc[:-7]
 
-xgb_model = xgb.XGBRegressor(n_estimators=100, learning_rate=0.1, max_depth=5, random_state=42)
+xgb_model = xgb.XGBRegressor(
+    n_estimators=100,
+    learning_rate=0.1,
+    max_depth=5,
+    random_state=42
+)
+
 xgb_model.fit(X_train_occ, y_train_occ)
 
 # -----------------------------
-# FINAL FORECAST (FIXED DATES)
+# FIXED FORECAST (THIS WAS MISSING BEFORE)
+# -----------------------------
+last_occ_values = y_occ.tail(num_lags_occ).tolist()
+occ_forecast = []
+
+for _ in range(7):
+    inp = np.array(last_occ_values[-num_lags_occ:]).reshape(1, -1)
+    pred = xgb_model.predict(inp)[0]
+    pred = max(0, min(80, pred))
+    occ_forecast.append(pred)
+    last_occ_values.append(pred)
+
+# -----------------------------
+# FINAL FORECAST (SAFE DATES)
 # -----------------------------
 forecast_dates = pd.date_range(
     start=pd.to_datetime(daily_occ['Adm_Date']).max() + pd.Timedelta(days=1),
@@ -136,11 +156,11 @@ forecast_dates = pd.date_range(
 )
 
 final_tuned_df = pd.DataFrame({
-    'Date': forecast_dates,  # keep as datetime first
+    'Date': forecast_dates,
     'Tuned_Predicted_Occupancy': occ_forecast
 })
 
-# 🔥 CRITICAL FIX: force string format BEFORE JSON export
+# FORCE CLEAN STRING DATES (FIXES 1764633600000 ISSUE)
 final_tuned_df['Date'] = final_tuned_df['Date'].dt.strftime('%Y-%m-%d')
 
 final_tuned_df.to_json(
@@ -148,17 +168,40 @@ final_tuned_df.to_json(
     orient="records"
 )
 
-"""### SAVE CHARTS (FIXED)"""
-
+# -----------------------------
+# CHART 1: OCCUPANCY FORECAST
+# -----------------------------
 plt.figure(figsize=(12,6))
-sns.lineplot(x='Date', y='Tuned_Predicted_Occupancy', data=final_tuned_df)
-plt.axhline(y=80, color='red')
+sns.lineplot(
+    x='Date',
+    y='Tuned_Predicted_Occupancy',
+    data=final_tuned_df,
+    marker='o'
+)
+
+for x, y in zip(final_tuned_df['Date'], final_tuned_df['Tuned_Predicted_Occupancy']):
+    plt.text(x, y, f"{y:.1f}", fontsize=8)
+
+plt.axhline(y=80, color='red', linestyle='--')
+plt.title("7-Day Bed Occupancy Forecast")
+plt.xticks(rotation=45)
 plt.tight_layout()
 plt.savefig("outputs/occupancychart.png")
 plt.close()
 
+# -----------------------------
+# CHART 2: DEMAND
+# -----------------------------
 plt.figure(figsize=(12,6))
-sns.lineplot(x='Adm_Date', y='Occupancy', data=daily_occ)
+
+sns.lineplot(
+    x=daily_occ['Adm_Date'].astype(str),
+    y=daily_occ['Occupancy'],
+    marker='o'
+)
+
+plt.title("Bed Demand Trend")
+plt.xticks(rotation=45)
 plt.tight_layout()
 plt.savefig("outputs/demandchart.png")
 plt.close()
